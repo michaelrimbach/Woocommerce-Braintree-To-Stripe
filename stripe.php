@@ -35,23 +35,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['stripe_json'])) {
         
         if (empty($user_id)) continue;
         
-        // Create new payment_tokens
-        foreach ($stripe_account->cards as $card) {
-
-            $query = mysqli_query($mysqli, "SELECT * FROM `wp_woocommerce_payment_tokens` WHERE `user_id` = ".$user_id." AND `token` = '".$card->id."'");
+        // Add usermeta
+        $query = mysqli_query($mysqli, "SELECT * FROM `wp_usermeta` WHERE `user_id` = ".$user_id." AND `meta_key` = '_stripe_customer_id'");
+        
+        if(mysqli_num_rows($query) > 0) {
+            echo "<pre>Usermeta already exists: ".$stripe_account->id."</pre>";
+        } else {
+            $query = "INSERT INTO `wp_usermeta` (`user_id`,`meta_key`,`meta_value`) VALUES (".$user_id.",'_stripe_customer_id','".$stripe_account->id."')";
+            $mysqli->query($query);
             
-            if(mysqli_num_rows($query) > 0) {
-                echo "<pre>Card already exists: ".$card->id."</pre>";
-            } else {
-                // Create token
-                $query = "INSERT INTO `wp_woocommerce_payment_tokens` (`gateway_id`,`token`,`user_id`,`type`,`is_default`) VALUES ('stripe', '".$card->id."', ".$user_id.", 'CC', 1)";
-                $mysqli->query($query);
+            echo '<pre>Created new usermeta for '.$user_id.': '.$stripe_account->id.'</pre>';
+            
+            // Create new payment_tokens
+            foreach ($stripe_account->cards as $card) {
+    
+                $query = mysqli_query($mysqli, "SELECT * FROM `wp_woocommerce_payment_tokens` WHERE `user_id` = ".$user_id." AND `token` = '".$card->id."'");
                 
-                // Add token meta
-                $query = "INSERT INTO `wp_woocommerce_payment_tokenmeta` (`payment_token_id`,`meta_key`,`meta_value`) VALUES (".$mysqli->insert_id.",'last4','".$card->last4."'),(".$mysqli->insert_id.",'expiry_year','".$card->exp_year."'),(".$mysqli->insert_id.",'expiry_month','".$card->exp_month."'),(".$mysqli->insert_id.",'card_type','".strtolower($card->brand)."')";
-                $mysqli->query($query);
-                
-                echo '<pre>Created new card for '.$user_id.': '.$card->brand.' '.$card->last4.' '.$card->exp_month.'/'.$card->exp_year.'</pre>';
+                if(mysqli_num_rows($query) > 0) {
+                    echo "<pre>Card already exists for ".$user_id.": ".$card->id."</pre>";
+                } else {
+                    // Create token
+                    $query = "INSERT INTO `wp_woocommerce_payment_tokens` (`gateway_id`,`token`,`user_id`,`type`,`is_default`) VALUES ('stripe', '".$card->id."', ".$user_id.", 'CC', 1)";
+                    $mysqli->query($query);
+                    
+                    // Add token meta
+                    $query = "INSERT INTO `wp_woocommerce_payment_tokenmeta` (`payment_token_id`,`meta_key`,`meta_value`) VALUES (".$mysqli->insert_id.",'last4','".$card->last4."'),(".$mysqli->insert_id.",'expiry_year','".$card->exp_year."'),(".$mysqli->insert_id.",'expiry_month','".$card->exp_month."'),(".$mysqli->insert_id.",'card_type','".strtolower($card->brand)."')";
+                    $mysqli->query($query);
+                    
+                    echo '<pre>Created new card for '.$user_id.': '.$card->brand.' '.$card->last4.' '.$card->exp_month.'/'.$card->exp_year.'</pre>';
+                }
             }
         }
     }
